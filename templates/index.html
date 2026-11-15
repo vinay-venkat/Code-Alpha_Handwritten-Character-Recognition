@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NeuroScribe — Deep Learning Handwritten Character & Word Recognition</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            },
+            dark: {
+              900: '#0b0f19',
+              800: '#111827',
+              700: '#1f2937',
+              600: '#374151'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="bg-[#0b0f19] text-slate-100 min-h-screen flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+
+  <!-- Navigation Bar -->
+  <header class="border-b border-slate-800/80 bg-[#0f172a]/80 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+          <i class="fa-solid fa-pen-nib text-white text-lg"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-xl tracking-tight bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent">NeuroScribe</span>
+            <span class="text-xs uppercase px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 font-semibold border border-indigo-500/20">CNN + CRNN</span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">Deep Handwritten Character & Word Recognition Engine</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center space-x-1 sm:space-x-2">
+        <button onclick="switchTab('canvas-tab')" id="tab-btn-canvas-tab" class="tab-btn active px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center space-x-2">
+          <i class="fa-solid fa-signature"></i>
+          <span>Live Canvas</span>
+        </button>
+        <button onclick="switchTab('scanner-tab')" id="tab-btn-scanner-tab" class="tab-btn px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center space-x-2">
+          <i class="fa-solid fa-file-lines"></i>
+          <span>Word & Document Scanner</span>
+        </button>
+        <button onclick="switchTab('dataset-tab')" id="tab-btn-dataset-tab" class="tab-btn px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center space-x-2">
+          <i class="fa-solid fa-database"></i>
+          <span>Dataset Explorer</span>
+        </button>
+        <button onclick="switchTab('architecture-tab')" id="tab-btn-architecture-tab" class="tab-btn px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center space-x-2">
+          <i class="fa-solid fa-brain"></i>
+          <span>Architecture & Metrics</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- ========================================== -->
+    <!-- TAB 1: LIVE CANVAS (DRAW & PREDICT) -->
+    <!-- ========================================== -->
+    <section id="canvas-tab" class="tab-content block space-y-6">
+      
+      <!-- Top Banner / Controls -->
+      <div class="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-sm">
+        <div class="flex items-center space-x-3">
+          <span class="text-sm font-semibold text-slate-300">Model Domain:</span>
+          <div class="inline-flex rounded-xl bg-slate-950 p-1 border border-slate-800 text-sm">
+            <button id="mode-mnist" onclick="setCanvasMode('mnist')" class="px-3 py-1.5 rounded-lg font-medium text-xs sm:text-sm transition-all bg-indigo-600 text-white shadow">
+              <i class="fa-solid fa-hashtag mr-1"></i> Digits (MNIST 0-9)
+            </button>
+            <button id="mode-emnist" onclick="setCanvasMode('emnist')" class="px-3 py-1.5 rounded-lg font-medium text-xs sm:text-sm text-slate-400 hover:text-slate-200 transition-all">
+              <i class="fa-solid fa-font mr-1"></i> Letters (EMNIST A-Z)
+            </button>
+            <button id="mode-auto" onclick="setCanvasMode('auto')" class="px-3 py-1.5 rounded-lg font-medium text-xs sm:text-sm text-slate-400 hover:text-slate-200 transition-all">
+              <i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Alphanumeric (All 36)
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-4">
+          <!-- Real-time auto predict toggle -->
+          <label class="flex items-center cursor-pointer space-x-2 text-sm text-slate-300">
+            <div class="relative">
+              <input type="checkbox" id="auto-predict-toggle" class="sr-only" checked>
+              <div class="w-10 h-6 bg-slate-800 rounded-full transition-colors toggle-bg border border-slate-700"></div>
+              <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform"></div>
+            </div>
+            <span class="font-medium text-xs sm:text-sm">Live Auto-Predict</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Canvas & Predictions Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left: Drawing Canvas Card (col-span-6) -->
+        <div class="lg:col-span-6 flex flex-col space-y-4">
+          <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-xl flex flex-col">
+            
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-pen-paintbrush text-indigo-400"></i>
+                <h3 class="font-semibold text-slate-200 text-sm">Interactive Drawing Canvas</h3>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-xs text-slate-400">Brush Size:</span>
+                <input type="range" id="brush-size" min="10" max="36" value="22" class="w-20 accent-indigo-500 cursor-pointer">
+              </div>
+            </div>
+
+            <!-- Canvas Container -->
+            <div class="relative w-full aspect-square max-w-[420px] mx-auto rounded-xl overflow-hidden border-2 border-slate-700/60 bg-black shadow-inner flex items-center justify-center group">
+              <canvas id="paint-canvas" width="400" height="400" class="w-full h-full cursor-crosshair touch-none"></canvas>
+              
+              <!-- Subtle crosshair grid overlay -->
+              <div class="pointer-events-none absolute inset-0 opacity-10 bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:28px_28px]"></div>
+
+              <!-- Canvas empty hint badge -->
+              <div id="canvas-empty-hint" class="pointer-events-none absolute text-slate-500 text-sm flex flex-col items-center space-y-1">
+                <i class="fa-solid fa-hand-pointer text-xl animate-bounce"></i>
+                <span>Draw a digit or letter here</span>
+              </div>
+            </div>
+
+            <!-- Canvas Action Buttons -->
+            <div class="flex items-center justify-between mt-4 gap-2">
+              <div class="flex space-x-2">
+                <button id="btn-clear" onclick="clearCanvas()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-medium text-xs sm:text-sm transition-all border border-slate-700 flex items-center space-x-2">
+                  <i class="fa-solid fa-trash-can"></i>
+                  <span>Clear</span>
+                </button>
+                <button id="btn-undo" onclick="undoCanvas()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-medium text-xs sm:text-sm transition-all border border-slate-700 flex items-center space-x-2">
+                  <i class="fa-solid fa-rotate-left"></i>
+                  <span>Undo</span>
+                </button>
+              </div>
+
+              <button id="btn-predict" onclick="predictCanvas()" class="px-6 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-indigo-600/30 transition-all flex items-center space-x-2">
+                <i class="fa-solid fa-bolt"></i>
+                <span>Predict Now</span>
+              </button>
+            </div>
+
+            <!-- Quick Presets -->
+            <div class="mt-4 pt-4 border-t border-slate-800">
+              <span class="text-xs text-slate-400 block mb-2 font-medium">Quick Character Presets (Click to Test):</span>
+              <div class="flex flex-wrap gap-2" id="canvas-presets-container">
+                <button onclick="loadPreset('7')" class="preset-btn px-3 py-1 rounded-lg bg-slate-800/80 hover:bg-indigo-600/30 hover:border-indigo-500 border border-slate-700 text-xs font-mono">7</button>
+                <button onclick="loadPreset('3')" class="preset-btn px-3 py-1 rounded-lg bg-slate-800/80 hover:bg-indigo-600/30 hover:border-indigo-500 border border-slate-700 text-xs font-mono">3</button>
+                <button onclick="loadPreset('8')" class="preset-btn px-3 py-1 rounded-lg bg-slate-800/80 hover:bg-indigo-600/30 hover:border-indigo-500 border border-slate-700 text-xs font-mono">8</button>
+                <button onclick="loadPreset('A')" class="preset-btn px-3 py-1 rounded-lg bg-slate-800/80 hover:bg-indigo-600/30 hover:border-indigo-500 border border-slate-700 text-xs font-mono">A</button>
+                <button onclick="loadPreset('B')" class="preset-btn px-3 py-1 rounded-lg bg-slate-800/80 hover:bg-indigo-600/30 hover:border-indigo-500 border border-slate-700 text-xs font-mono">B</button>
+                <button onclick="loadPreset('R')" class="preset-btn px-3 py-1 rounded-lg bg-slate-800/80 hover:bg-indigo-600/30 hover:border-indigo-500 border border-slate-700 text-xs font-mono">R</button>
+                <button onclick="loadPreset('S')" class="preset-btn px-3 py-1 rounded-lg bg-slate-800/80 hover:bg-indigo-600/30 hover:border-indigo-500 border border-slate-700 text-xs font-mono">S</button>
+                <button onclick="loadPreset('Z')" class="preset-btn px-3 py-1 rounded-lg bg-slate-800/80 hover:bg-indigo-600/30 hover:border-indigo-500 border border-slate-700 text-xs font-mono">Z</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Right: Real-time Predictions & Preprocessing Insights (col-span-6) -->
+        <div class="lg:col-span-6 flex flex-col space-y-4">
+          
+          <!-- Hero Prediction Card -->
+          <div class="p-6 rounded-2xl bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-indigo-950/40 border border-slate-800/80 shadow-xl flex items-center justify-between relative overflow-hidden">
+            <div class="space-y-2 z-10">
+              <span class="text-xs uppercase tracking-wider text-indigo-400 font-semibold flex items-center gap-1.5">
+                <i class="fa-solid fa-bullseye"></i> Top Predicted Character
+              </span>
+              <div class="flex items-baseline space-x-3">
+                <span id="top-pred-char" class="text-6xl sm:text-7xl font-extrabold text-white tracking-tight font-mono">?</span>
+                <span id="top-pred-class-desc" class="text-sm text-slate-400 font-medium">Draw or select a preset</span>
+              </div>
+              <div class="flex items-center space-x-2 pt-1">
+                <span class="text-xs text-slate-400">Confidence:</span>
+                <span id="top-pred-conf" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">0.0%</span>
+                <span id="inference-time" class="text-xs text-slate-500 pl-2 border-l border-slate-700">0 ms</span>
+              </div>
+            </div>
+
+            <!-- Visual 28x28 Preprocessed Character Preview -->
+            <div class="flex flex-col items-center space-y-2 z-10">
+              <div class="w-20 h-20 rounded-xl bg-black border-2 border-slate-700 p-1 flex items-center justify-center shadow-lg">
+                <img id="preprocessed-preview" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAQAAACoKsFlAAAAD0lEQVR42mNkGAWjYBSMAgACmgABsO2e3gAAAABJRU5ErkJggg==" alt="28x28 Preprocessed" class="w-full h-full object-contain pixelated">
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono">28×28 Centered</span>
+            </div>
+
+            <!-- Background subtle glow -->
+            <div class="absolute -right-10 -bottom-10 w-44 h-44 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+          </div>
+
+          <!-- Top-5 Probability Bar Chart Card -->
+          <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-xl flex-1 flex flex-col">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-chart-simple text-indigo-400"></i>
+                <h3 class="font-semibold text-slate-200 text-sm">Top 5 Class Confidence Distribution</h3>
+              </div>
+              <span class="text-xs text-slate-400">Softmax Output</span>
+            </div>
+
+            <div class="relative flex-1 min-h-[190px]">
+              <canvas id="confidence-chart"></canvas>
+            </div>
+          </div>
+
+          <!-- Pipeline Explanation Box -->
+          <div class="p-4 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs text-slate-400 space-y-1.5">
+            <div class="flex items-center space-x-2 text-indigo-300 font-medium">
+              <i class="fa-solid fa-circle-info"></i>
+              <span>Computer Vision Normalization:</span>
+            </div>
+            <p>Your stroke is automatically isolated via Otsu binarization, scaled aspect-preserved to 20×20, centered inside a 28×28 matrix using Center of Mass image moments, and normalized for the CNN.</p>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: WORD & DOCUMENT SCANNER -->
+    <!-- ========================================== -->
+    <section id="scanner-tab" class="tab-content hidden space-y-6">
+      
+      <!-- Scanner Controls & Model Switcher -->
+      <div class="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-sm">
+        <div class="flex items-center space-x-3">
+          <span class="text-sm font-semibold text-slate-300">Recognition Pipeline:</span>
+          <div class="inline-flex rounded-xl bg-slate-950 p-1 border border-slate-800 text-sm">
+            <button id="pipeline-segmentation" onclick="setScannerPipeline('segmentation')" class="px-3.5 py-1.5 rounded-lg font-medium text-xs sm:text-sm transition-all bg-indigo-600 text-white shadow">
+              <i class="fa-solid fa-crop-simple mr-1"></i> Contour Segmentation + CNN
+            </button>
+            <button id="pipeline-crnn" onclick="setScannerPipeline('crnn')" class="px-3.5 py-1.5 rounded-lg font-medium text-xs sm:text-sm text-slate-400 hover:text-slate-200 transition-all">
+              <i class="fa-solid fa-network-wired mr-1"></i> Sequence CRNN (CTC Word Model)
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <label for="file-upload-input" class="cursor-pointer px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs sm:text-sm shadow-md transition-all flex items-center space-x-2">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span>Upload Handwritten Image</span>
+          </label>
+          <input type="file" id="file-upload-input" accept="image/*" class="hidden">
+        </div>
+      </div>
+
+      <!-- Quick Sample Words Gallery -->
+      <div class="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/60">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-images text-indigo-400"></i> Sample Handwritten Word Gallery (Click to Scan):
+          </span>
+          <span class="text-xs text-slate-500">Includes multi-character words and digits</span>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3" id="sample-gallery-container">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Scanner Work Area -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left: Uploaded / Segmented Image View (col-span-7) -->
+        <div class="lg:col-span-7 flex flex-col space-y-4">
+          <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-xl flex flex-col">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-semibold text-slate-200 text-sm flex items-center gap-2">
+                <i class="fa-solid fa-vector-square text-indigo-400"></i>
+                <span>Image & Bounding Box Detection View</span>
+              </h3>
+              
+              <div class="flex items-center space-x-2 text-xs">
+                <button onclick="toggleScannerView('annotated')" id="btn-view-annotated" class="px-2.5 py-1 rounded-md bg-indigo-600 text-white font-medium">Boxes</button>
+                <button onclick="toggleScannerView('binary')" id="btn-view-binary" class="px-2.5 py-1 rounded-md bg-slate-800 text-slate-400 hover:text-white">Binarized</button>
+                <button onclick="toggleScannerView('original')" id="btn-view-original" class="px-2.5 py-1 rounded-md bg-slate-800 text-slate-400 hover:text-white">Original</button>
+              </div>
+            </div>
+
+            <!-- Image Viewport -->
+            <div id="drop-zone" class="relative min-h-[320px] max-h-[460px] rounded-xl border-2 border-dashed border-slate-700 bg-slate-950/60 flex items-center justify-center p-4 overflow-hidden transition-all">
+              <div id="drop-zone-empty" class="text-center space-y-3 p-6">
+                <div class="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto text-2xl">
+                  <i class="fa-solid fa-file-arrow-up"></i>
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-slate-200">Drag & Drop an image or select a sample above</p>
+                  <p class="text-xs text-slate-500 mt-1">Supports PNG, JPG, JPEG, BMP</p>
+                </div>
+              </div>
+
+              <!-- Displays -->
+              <img id="scanner-img-annotated" class="hidden max-h-[420px] w-auto max-w-full rounded-lg shadow-md object-contain">
+              <img id="scanner-img-binary" class="hidden max-h-[420px] w-auto max-w-full rounded-lg shadow-md object-contain pixelated">
+              <img id="scanner-img-original" class="hidden max-h-[420px] w-auto max-w-full rounded-lg shadow-md object-contain">
+            </div>
+
+            <!-- Stats Bar -->
+            <div class="flex items-center justify-between mt-3 text-xs text-slate-400">
+              <span id="scanner-char-count">0 characters detected</span>
+              <span id="scanner-time">Inference: 0 ms</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Recognition Output & Breakdown (col-span-5) -->
+        <div class="lg:col-span-5 flex flex-col space-y-4">
+          
+          <!-- Transcription Result Box -->
+          <div class="p-5 rounded-2xl bg-gradient-to-br from-slate-900/90 to-indigo-950/40 border border-slate-800/80 shadow-xl space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs uppercase tracking-wider text-indigo-400 font-semibold flex items-center gap-1.5">
+                <i class="fa-solid fa-spell-check"></i> Reconstructed Text
+              </span>
+              <button onclick="copyRecognizedText()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs transition-all flex items-center gap-1 border border-slate-700">
+                <i class="fa-regular fa-copy"></i>
+                <span id="copy-btn-text">Copy</span>
+              </button>
+            </div>
+
+            <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 min-h-[90px] flex items-center">
+              <p id="recognized-text-display" class="font-mono text-2xl sm:text-3xl font-bold text-white tracking-wide break-all">
+                <span class="text-slate-600 text-lg font-sans font-normal italic">Recognition output will appear here...</span>
+              </p>
+            </div>
+
+            <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
+              <span>Overall Average Confidence:</span>
+              <span id="overall-confidence-badge" class="px-2.5 py-0.5 rounded-full font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">0.0%</span>
+            </div>
+          </div>
+
+          <!-- Segmented Characters Table / Grid -->
+          <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-xl flex-1 flex flex-col">
+            <h4 class="font-semibold text-slate-200 text-sm mb-3 flex items-center gap-2">
+              <i class="fa-solid fa-table-cells text-indigo-400"></i>
+              <span>Character-by-Character Breakdown</span>
+            </h4>
+
+            <div class="flex-1 overflow-y-auto max-h-[260px] pr-1 space-y-2" id="segmented-chars-list">
+              <div class="text-center text-slate-500 text-xs py-10">No image scanned yet</div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: DATASET EXPLORER -->
+    <!-- ========================================== -->
+    <section id="dataset-tab" class="tab-content hidden space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-sm">
+        <div>
+          <h3 class="font-bold text-lg text-slate-200">MNIST & EMNIST Dataset Explorer</h3>
+          <p class="text-xs text-slate-400">Inspect real validation samples directly from the datasets and verify model predictions in real time.</p>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <select id="dataset-filter-select" onchange="loadDatasetSamples()" class="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+            <option value="mnist">MNIST Digits (0 - 9)</option>
+            <option value="emnist">EMNIST Letters (A - Z)</option>
+          </select>
+          <button onclick="loadDatasetSamples()" class="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-all flex items-center space-x-2">
+            <i class="fa-solid fa-arrows-rotate"></i>
+            <span>Refresh Samples</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Dataset Grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4" id="dataset-samples-grid">
+        <!-- Dynamically loaded samples -->
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: ARCHITECTURE & BENCHMARK METRICS -->
+    <!-- ========================================== -->
+    <section id="architecture-tab" class="tab-content hidden space-y-6">
+      
+      <!-- Metrics Overview Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-lg">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs uppercase text-slate-400 font-semibold">MNIST CNN Test Accuracy</span>
+            <span class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xs"><i class="fa-solid fa-check"></i></span>
+          </div>
+          <div class="text-3xl font-extrabold text-white" id="metric-mnist-acc">99.1%</div>
+          <div class="text-xs text-slate-400 mt-1">10 Classes (Digits 0-9)</div>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-lg">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs uppercase text-slate-400 font-semibold">EMNIST Letters Accuracy</span>
+            <span class="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xs"><i class="fa-solid fa-font"></i></span>
+          </div>
+          <div class="text-3xl font-extrabold text-white" id="metric-emnist-acc">92.8%</div>
+          <div class="text-xs text-slate-400 mt-1">26 Classes (Letters A-Z)</div>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-lg">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs uppercase text-slate-400 font-semibold">Inference Latency</span>
+            <span class="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center text-xs"><i class="fa-solid fa-bolt"></i></span>
+          </div>
+          <div class="text-3xl font-extrabold text-white">&lt; 4 ms</div>
+          <div class="text-xs text-slate-400 mt-1">High-throughput CPU optimized</div>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-lg">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs uppercase text-slate-400 font-semibold">Sequence Modeling</span>
+            <span class="w-7 h-7 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center text-xs"><i class="fa-solid fa-network-wired"></i></span>
+          </div>
+          <div class="text-3xl font-extrabold text-white">CRNN + CTC</div>
+          <div class="text-xs text-slate-400 mt-1">BiGRU + Connectionist Temporal</div>
+        </div>
+      </div>
+
+      <!-- Architecture Visualizers -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- CNN Card -->
+        <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-xl space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-layer-group text-indigo-400"></i>
+              <h3 class="font-bold text-slate-200">Character CNN Architecture</h3>
+            </div>
+            <span class="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">Feedforward ConvNet</span>
+          </div>
+
+          <div class="space-y-3 font-mono text-xs">
+            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800">
+              <span class="text-indigo-400 font-bold">Input Layer:</span> (B, 1, 28, 28) Normalized Grayscale Character
+            </div>
+            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800">
+              <span class="text-indigo-400 font-bold">Conv Block 1:</span> Conv2D(1&rarr;32, 3&times;3) + BatchNorm + ReLU &rarr; Conv2D(32&rarr;64, 3&times;3) + BatchNorm + ReLU + MaxPool(2&times;2) &rarr; Dropout(0.2)
+            </div>
+            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800">
+              <span class="text-indigo-400 font-bold">Conv Block 2:</span> Conv2D(64&rarr;128, 3&times;3) + BatchNorm + ReLU + MaxPool(2&times;2) &rarr; Dropout(0.25)
+            </div>
+            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800">
+              <span class="text-indigo-400 font-bold">Conv Block 3:</span> Conv2D(128&rarr;128, 3&times;3) + BatchNorm + ReLU + AdaptiveAvgPool(4&times;4) &rarr; Dropout(0.25)
+            </div>
+            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800">
+              <span class="text-indigo-400 font-bold">Dense Classifier:</span> Linear(2048&rarr;256) + BatchNorm + ReLU + Dropout(0.4) &rarr; Linear(256&rarr;Classes)
+            </div>
+          </div>
+        </div>
+
+        <!-- CRNN Card -->
+        <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-xl space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-network-wired text-violet-400"></i>
+              <h3 class="font-bold text-slate-200">Sequence CRNN (Word) Architecture</h3>
+            </div>
+            <span class="text-xs px-2.5 py-0.5 rounded-full bg-violet-500/10 text-violet-300 border border-violet-500/20">CNN + BiGRU + CTC</span>
+          </div>
+
+          <div class="space-y-3 font-mono text-xs">
+            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800">
+              <span class="text-violet-400 font-bold">Input Layer:</span> (B, 1, 32, 128) Aspect-Scaled Handwritten Word
+            </div>
+            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800">
+              <span class="text-violet-400 font-bold">CNN Feature Extractor:</span> 5-stage Conv2D hierarchy collapsing height to 1 while preserving sequence length (T=32)
+            </div>
+            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800">
+              <span class="text-violet-400 font-bold">Recurrent BiGRU:</span> 2-layer Bidirectional GRU (Hidden Size 128, Dropout 0.2) modeling character language transitions
+            </div>
+            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800">
+              <span class="text-violet-400 font-bold">CTC Decoding:</span> Linear(256&rarr;37) &rarr; Greedy Best Path / Prefix Beam Search CTC decoder with blank collapse
+            </div>
+            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800">
+              <span class="text-violet-400 font-bold">Key Advantage:</span> Eliminates individual character segmentation errors for cursive and overlapping handwriting!
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800/80 bg-slate-950/80 py-4 text-center text-xs text-slate-500">
+    <p>NeuroScribe &bull; Handwritten Character & Word Recognition &bull; MNIST & EMNIST &bull; Deep Learning (CNN & CRNN)</p>
+  </footer>
+
+  <!-- App JavaScript -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
+
